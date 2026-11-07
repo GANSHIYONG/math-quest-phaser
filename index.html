@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>數學小勇者｜Phaser.js 闖關遊戲</title>
+  <meta name="description" content="適合國小學生的五關數學闖關遊戲：移動角色蒐集正確答案，答對加 10 分，答錯扣 5 分。" />
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #f7f8ff;
+      --muted: #aab4d4;
+      --panel: rgba(20, 27, 57, 0.88);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --mint: #75f1c3;
+      --yellow: #ffd66b;
+      --purple: #a991ff;
+      --coral: #ff8b8b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      overflow-x: hidden;
+      font-family: "Nunito", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 12% 0%, rgba(93, 85, 188, 0.28), transparent 32%),
+        radial-gradient(circle at 92% 8%, rgba(53, 191, 169, 0.18), transparent 28%),
+        #080d22;
+    }
+
+    .app-shell { width: min(1100px, 100%); }
+
+    .brand-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 15px;
+    }
+
+    .brand-lockup { display: flex; align-items: center; gap: 12px; }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: 14px;
+      font-size: 24px;
+      background: linear-gradient(145deg, #a991ff, #6c5ce7);
+      box-shadow: 0 12px 28px rgba(106, 82, 239, 0.35);
+    }
+
+    .eyebrow {
+      margin: 0 0 2px;
+      color: var(--mint);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 0.16em;
+    }
+
+    h1 { margin: 0; font-size: clamp(20px, 3vw, 28px); letter-spacing: -0.04em; }
+
+    .tech-pill {
+      padding: 8px 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      color: var(--muted);
+      background: rgba(20, 27, 57, 0.64);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .game-frame {
+      padding: 12px;
+      border: 1px solid var(--panel-border);
+      border-radius: 28px;
+      background: linear-gradient(145deg, rgba(40, 48, 93, 0.82), rgba(13, 18, 43, 0.94));
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35), inset 0 1px rgba(255, 255, 255, 0.06);
+    }
+
+    #game {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 18px;
+      background: #111837;
+    }
+
+    canvas { display: block; width: 100% !important; height: auto !important; image-rendering: auto; }
+
+    .touch-controls {
+      display: none;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      padding-top: 12px;
+    }
+
+    .touch-controls .cluster { display: grid; grid-template-columns: repeat(3, 48px); gap: 6px; }
+    .touch-controls button {
+      width: 48px;
+      height: 42px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 13px;
+      color: var(--ink);
+      background: rgba(75, 86, 145, 0.54);
+      font: 900 18px inherit;
+      touch-action: none;
+    }
+    .touch-controls button:active { transform: translateY(2px); background: rgba(117, 241, 195, 0.35); }
+    .touch-controls .up { grid-column: 2; }
+    .touch-controls .left { grid-column: 1; grid-row: 2; }
+    .touch-controls .down { grid-column: 2; grid-row: 2; }
+    .touch-controls .right { grid-column: 3; grid-row: 2; }
+
+    .help-line {
+      margin: 14px 4px 0;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .help-line span { color: var(--yellow); font-weight: 900; }
+
+    @media (max-width: 720px) {
+      body { padding: 12px; }
+      .brand-bar { align-items: flex-start; }
+      .tech-pill { display: none; }
+      .game-frame { padding: 8px; border-radius: 22px; }
+      #game { border-radius: 15px; }
+      .touch-controls { display: flex; }
+      .help-line { font-size: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="brand-bar">
+      <div class="brand-lockup">
+        <div class="brand-mark" aria-hidden="true">✦</div>
+        <div>
+          <p class="eyebrow">MATH QUEST · PHASER.JS</p>
+          <h1>數學小勇者</h1>
+        </div>
+      </div>
+      <div class="tech-pill">5 關冒險 · 每題 10 分</div>
+    </header>
+
+    <section class="game-frame" aria-label="數學小勇者遊戲區">
+      <div id="game"></div>
+      <div class="touch-controls" aria-label="觸控方向控制">
+        <div class="cluster">
+          <button class="up" data-dir="up" aria-label="向上">▲</button>
+          <button class="left" data-dir="left" aria-label="向左">◀</button>
+          <button class="down" data-dir="down" aria-label="向下">▼</button>
+          <button class="right" data-dir="right" aria-label="向右">▶</button>
+        </div>
+      </div>
+    </section>
+    <p class="help-line">電腦使用 <span>方向鍵 / WASD</span> 移動；手機可用下方方向鍵。找到正確答案就能過關！</p>
+  </main>
+
+  <script>
+    const LEVELS = [
+      {
+        name: "彩虹森林",
+        tag: "加法小徑",
+        prompt: "小兔有 7 顆胡蘿蔔，又找到 5 顆。共有幾顆？",
+        formula: "7 + 5 = ?",
+        answers: ["10", "12", "13"],
+        correct: "12",
+        accent: 0x75f1c3,
+        sky: 0x162c48,
+        positions: [[190, 330], [490, 220], [760, 410]]
+      },
+      {
+        name: "深海探險",
+        tag: "減法珊瑚礁",
+        prompt: "海豚有 15 顆星星，送出 6 顆。還剩幾顆？",
+        formula: "15 − 6 = ?",
+        answers: ["9", "8", "11"],
+        correct: "9",
+        accent: 0x69c8ff,
+        sky: 0x122f51,
+        positions: [[220, 230], [510, 420], [790, 275]]
+      },
+      {
+        name: "星球基地",
+        tag: "乘法發射台",
+        prompt: "每艘火箭有 4 個引擎，3 艘共有幾個？",
+        formula: "4 × 3 = ?",
+        answers: ["7", "12", "16"],
+        correct: "12",
+        accent: 0xffcf68,
+        sky: 0x20204a,
+        positions: [[170, 425], [475, 250], [775, 390]]
+      },
+      {
+        name: "魔法城堡",
+        tag: "除法寶石室",
+        prompt: "20 顆寶石平均分給 5 位朋友，每人幾顆？",
+        formula: "20 ÷ 5 = ?",
+        answers: ["4", "5", "6"],
+        correct: "4",
+        accent: 0xff9bceff,
+        sky: 0x2d214c,
+        positions: [[225, 365], [510, 465], [785, 245]]
+      },
+      {
+        name: "終極星門",
+        tag: "混合挑戰",
+        prompt: "小勇者有 8 枚金幣，先找到 7 枚，再用掉 3 枚。還剩幾枚？",
+        formula: "8 + 7 − 3 = ?",
+        answers: ["11", "12", "14"],
+        correct: "12",
+        accent: 0xffb693ff,
+        sky: 0x302344,
+        positions: [[180, 250], [495, 430], [800, 285]]
+      }
+    ];
+
+    const COLORS = {
+      ink: 0xf7f8ff,
+      muted: 0xaab4d4,
+      panel: 0x141b39,
+      mint: 0x75f1c3,
+      yellow: 0xffd66b,
+      purple: 0xa991ff,
+      coral: 0xff8b8b
+    };
+
+    function addText(scene, x, y, text, style = {}) {
+      return scene.add.text(x, y, text, {
+        fontFamily: '"Nunito", "Noto Sans TC", "Microsoft JhengHei", sans-serif',
+        color: "#f7f8ff",
+        ...style
+      });
+    }
+
+    function roundedButton(scene, x, y, width, height, label, fill, callback) {
+      const button = scene.add.container(x, y).setSize(width, height).setInteractive({ useHandCursor: true });
+      const shadow = scene.add.rectangle(0, 7, width, height, 0x070a18, 0.42).setOrigin(0.5);
+      const plate = scene.add.rectangle(0, 0, width, height, fill, 1).setOrigin(0.5);
+      plate.setStrokeStyle(2, 0xffffff, 0.16);
+      const text = addText(scene, 0, 0, label, { fontSize: "20px", fontStyle: "900", color: "#11162e" }).setOrigin(0.5);
+      button.add([shadow, plate, text]);
+      button.on("pointerover", () => scene.tweens.add({ targets: button, scale: 1.04, duration: 120, ease: "Sine.out" }));
+      button.on("pointerout", () => scene.tweens.add({ targets: button, scale: 1, duration: 120, ease: "Sine.out" }));
+      button.on("pointerdown", callback);
+      return button;
+    }
+
+    class BaseScene extends Phaser.Scene {
+      createBackdrop(color = 0x111837) {
+        this.add.rectangle(480, 300, 960, 600, color).setDepth(-20);
+        const glow = this.add.graphics().setDepth(-19);
+        glow.fillStyle(0xffffff, 0.05);
+        glow.fillCircle(90, 75, 190);
+        glow.fillCircle(880, 530, 250);
+        const stars = this.add.graphics().setDepth(-18);
+        const points = [[76, 132], [160, 84], [276, 118], [386, 72], [580, 118], [720, 70], [866, 146], [914, 320], [72, 472], [872, 460]];
+        points.forEach(([x, y], index) => {
+          stars.fillStyle(index % 2 ? 0xffffff : COLORS.mint, index % 2 ? 0.28 : 0.36);
+          stars.fillCircle(x, y, index % 2 ? 2 : 3);
+        });
+      }
+
+      makeTextures() {
+        if (this.textures.exists("hero")) return;
+        const hero = this.make.graphics({ x: 0, y: 0, add: false });
+        hero.fillStyle(0x000000, 0.18); hero.fillEllipse(32, 70, 42, 10);
+        hero.fillStyle(0xa991ff, 1); hero.fillTriangle(32, 34, 7, 73, 57, 73);
+        hero.fillStyle(0xffd4a5, 1); hero.fillCircle(32, 28, 18);
+        hero.fillStyle(0x35275f, 1); hero.fillCircle(25, 26, 2.5); hero.fillCircle(39, 26, 2.5);
+        hero.lineStyle(2, 0x35275f, 1); hero.beginPath(); hero.arc(32, 28, 8, 0.2, 2.9, false); hero.strokePath();
+        hero.fillStyle(0xffd66b, 1); hero.fillTriangle(12, 16, 24, 2, 36, 18);
+        hero.generateTexture("hero", 64, 80); hero.destroy();
+
+        const orb = this.make.graphics({ x: 0, y: 0, add: false });
+        orb.fillStyle(0x000000, 0.18); orb.fillCircle(38, 42, 31);
+        orb.fillStyle(0xffffff, 0.14); orb.fillCircle(38, 36, 35);
+        orb.lineStyle(3, 0xffffff, 0.38); orb.strokeCircle(38, 36, 32);
+        orb.generateTexture("answer-orb", 76, 84); orb.destroy();
+      }
+    }
+
+    class StartScene extends BaseScene {
+      constructor() { super("StartScene"); }
+
+      create() {
+        this.createBackdrop(0x10172f);
+        this.makeTextures();
+        this.add.rectangle(480, 300, 810, 500, COLORS.panel, 0.93).setStrokeStyle(1, 0xffffff, 0.12);
+        this.add.circle(480, 125, 62, 0xa991ff, 0.18);
+        addText(this, 480, 106, "✦", { fontSize: "52px", color: "#ffd66b" }).setOrigin(0.5);
+        addText(this, 480, 188, "數學小勇者", { fontSize: "48px", fontStyle: "900", color: "#f7f8ff" }).setOrigin(0.5);
+        addText(this, 480, 235, "穿越五個奇幻世界，找到每一關的正確答案！", { fontSize: "19px", color: "#aab4d4" }).setOrigin(0.5);
+
+        const info = this.add.container(480, 322);
+        const infoPlate = this.add.rectangle(0, 0, 600, 86, 0x202957, 0.9).setStrokeStyle(1, 0xffffff, 0.1);
+        const infoTitle = addText(this, -270, -22, "遊戲規則", { fontSize: "15px", fontStyle: "900", color: "#75f1c3" });
+        const infoCopy = addText(this, -270, 8, "移動角色碰到答案球｜答對 +10 分｜答錯 −5 分", { fontSize: "17px", fontStyle: "700", color: "#f7f8ff" });
+        info.add([infoPlate, infoTitle, infoCopy]);
+
+        const dots = this.add.container(480, 430);
+        for (let i = 0; i < 5; i += 1) {
+          const dot = this.add.circle((i - 2) * 28, 0, 7, i === 0 ? COLORS.mint : 0x59658c, 1);
+          dots.add(dot);
+        }
+        addText(this, 480, 463, "彩虹森林  ·  深海探險  ·  星球基地  ·  魔法城堡  ·  終極星門", { fontSize: "13px", color: "#aab4d4" }).setOrigin(0.5);
+
+        roundedButton(this, 480, 524, 230, 58, "開始冒險  →", COLORS.mint, () => {
+          this.registry.set({ levelIndex: 0, score: 0 });
+          this.scene.start("GameScene");
+        });
+      }
+    }
+
+    class GameScene extends BaseScene {
+      constructor() { super("GameScene"); }
+
+      create() {
+        this.levelIndex = this.registry.get("levelIndex") ?? 0;
+        this.score = this.registry.get("score") ?? 0;
+        this.level = LEVELS[this.levelIndex];
+        this.locked = false;
+        this.virtualKeys = { left: false, right: false, up: false, down: false };
+        this.createWorld();
+        this.makeTextures();
+        this.createHero();
+        this.createAnswers();
+        this.createHud();
+        this.installTouchControls();
+      }
+
+      createWorld() {
+        this.createBackdrop(this.level.sky);
+        this.add.rectangle(480, 55, 900, 76, 0x0c122c, 0.88).setStrokeStyle(1, 0xffffff, 0.1);
+        this.add.rectangle(480, 584, 960, 32, 0x0a1027, 0.72);
+        const terrain = this.add.graphics();
+        terrain.fillStyle(this.level.accent, 0.16);
+        terrain.fillEllipse(170, 510, 245, 68);
+        terrain.fillEllipse(515, 536, 310, 74);
+        terrain.fillEllipse(820, 495, 240, 74);
+        terrain.fillStyle(0xffffff, 0.06);
+        [[120, 195, 100, 22], [420, 150, 120, 25], [815, 185, 96, 20]].forEach(([x, y, w, h]) => terrain.fillEllipse(x, y, w, h));
+        this.add.text(28, 575, "✦ 走過答案球，收集正確數字", { fontFamily: '"Microsoft JhengHei", sans-serif', fontSize: "13px", color: "#aab4d4" });
+      }
+
+      createHero() {
+        this.player = this.physics.add.sprite(100, 450, "hero");
+        this.player.setCollideWorldBounds(true);
+        this.player.setCircle(25, 7, 12);
+        this.player.setDepth(5);
+        this.cursors = this.input.keyboard.createCursorKeys();
+        this.keys = this.input.keyboard.addKeys("W,A,S,D");
+      }
+
+      createAnswers() {
+        this.answerGroup = this.physics.add.staticGroup();
+        this.answerObjects = [];
+        this.level.answers.forEach((answer, index) => {
+          const [x, y] = this.level.positions[index];
+          const orb = this.answerGroup.create(x, y, "answer-orb");
+          orb.setTint(index === 1 ? this.level.accent : 0x7e8ed0);
+          orb.setDepth(2);
+          orb.setData("answer", answer);
+          orb.setData("index", index);
+          orb.refreshBody();
+          const label = addText(this, x, y - 3, answer, { fontSize: "29px", fontStyle: "900", color: "#ffffff", stroke: "#182044", strokeThickness: 5 }).setOrigin(0.5).setDepth(3);
+          const sparkle = addText(this, x + 23, y - 27, "✦", { fontSize: "13px", color: "#ffffff" }).setOrigin(0.5).setDepth(4);
+          // Keep the physics body centered on the visible answer orb; only the labels float.
+          this.tweens.add({ targets: [label, sparkle], y: "+=7", duration: 1100 + index * 140, yoyo: true, repeat: -1, ease: "Sine.inOut", delay: index * 120 });
+          this.answerObjects.push({ orb, label, sparkle });
+        });
+        this.physics.add.overlap(this.player, this.answerGroup, this.handleAnswer, null, this);
+      }
+
+      createHud() {
+        addText(this, 50, 22, `第 ${this.levelIndex + 1} 關`, { fontSize: "16px", fontStyle: "900", color: "#75f1c3" });
+        addText(this, 50, 46, this.level.name, { fontSize: "20px", fontStyle: "900" });
+        addText(this, 280, 20, this.level.tag, { fontSize: "13px", fontStyle: "700", color: "#aab4d4" });
+
+        this.progressDots = [];
+        for (let i = 0; i < 5; i += 1) {
+          const dot = this.add.circle(430 + i * 23, 38, 5, i <= this.levelIndex ? COLORS.mint : 0x536087, 1);
+          this.progressDots.push(dot);
+        }
+
+        this.scoreLabel = addText(this, 880, 20, "分數", { fontSize: "12px", fontStyle: "900", color: "#aab4d4" }).setOrigin(1, 0);
+        this.scoreValue = addText(this, 880, 39, `${this.score}`, { fontSize: "23px", fontStyle: "900", color: "#ffd66b" }).setOrigin(1, 0);
+
+        this.add.rectangle(480, 105, 780, 62, 0x1b2450, 0.93).setStrokeStyle(1, this.level.accent, 0.35);
+        addText(this, 120, 86, "QUESTION", { fontSize: "11px", fontStyle: "900", color: "#75f1c3" });
+        addText(this, 120, 103, this.level.prompt, { fontSize: "17px", fontStyle: "700" });
+        addText(this, 835, 101, this.level.formula, { fontSize: "22px", fontStyle: "900", color: "#ffd66b" }).setOrigin(0.5);
+        this.feedback = addText(this, 480, 548, "", { fontSize: "18px", fontStyle: "900" }).setOrigin(0.5).setDepth(10).setAlpha(0);
+      }
+
+      installTouchControls() {
+        document.querySelectorAll("[data-dir]").forEach((button) => {
+          const direction = button.dataset.dir;
+          button.onpointerdown = (event) => { event.preventDefault(); this.virtualKeys[direction] = true; };
+          const release = (event) => { event.preventDefault(); this.virtualKeys[direction] = false; };
+          button.onpointerup = release;
+          button.onpointercancel = release;
+          button.onpointerleave = release;
+        });
+      }
+
+      update() {
+        if (!this.player || this.locked) return;
+        const left = this.cursors.left.isDown || this.keys.A.isDown || this.virtualKeys.left;
+        const right = this.cursors.right.isDown || this.keys.D.isDown || this.virtualKeys.right;
+        const up = this.cursors.up.isDown || this.keys.W.isDown || this.virtualKeys.up;
+        const down = this.cursors.down.isDown || this.keys.S.isDown || this.virtualKeys.down;
+        const velocity = 220;
+        this.player.setVelocity((right - left) * velocity, (down - up) * velocity);
+        if (left || right || up || down) {
+          this.player.angle = Phaser.Math.Linear(this.player.angle, (right ? 5 : left ? -5 : 0), 0.18);
+        } else {
+          this.player.setVelocity(0, 0);
+          this.player.angle = Phaser.Math.Linear(this.player.angle, 0, 0.15);
+        }
+      }
+
+      handleAnswer(player, orb) {
+        if (this.locked || orb.getData("cooldown")) return;
+        const selected = orb.getData("answer");
+        if (selected === this.level.correct) {
+          this.locked = true;
+          this.score += 10;
+          this.registry.set("score", this.score);
+          this.scoreValue.setText(`${this.score}`);
+          this.showFeedback("答對了！  +10 分  ✨", true);
+          this.answerObjects.forEach(({ orb: target, label, sparkle }) => {
+            this.tweens.add({ targets: [target, label, sparkle], scale: target === orb ? 1.35 : 0.75, alpha: 0, duration: target === orb ? 420 : 280, ease: "Back.in" });
+          });
+          this.tweens.add({ targets: player, scale: 1.18, duration: 170, yoyo: true, repeat: 1 });
+          this.time.delayedCall(900, () => {
+            if (this.levelIndex === LEVELS.length - 1) {
+              this.scene.start("WinScene");
+            } else {
+              this.registry.set("levelIndex", this.levelIndex + 1);
+              this.scene.restart();
+            }
+          });
+        } else {
+          orb.setData("cooldown", true);
+          this.score -= 5;
+          this.registry.set("score", this.score);
+          this.scoreValue.setText(`${this.score}`);
+          this.showFeedback("再想一下！  −5 分  💡", false);
+          this.cameras.main.shake(180, 0.008);
+          orb.setTint(COLORS.coral);
+          const selectedObject = this.answerObjects.find((item) => item.orb === orb);
+          if (selectedObject) {
+            this.tweens.add({ targets: selectedObject.label, x: "+=8", duration: 45, yoyo: true, repeat: 3 });
+          }
+          player.setPosition(100, 450);
+          this.time.delayedCall(850, () => { orb.clearTint(); orb.setTint(0x7e8ed0); orb.setData("cooldown", false); });
+        }
+      }
+
+      showFeedback(message, success) {
+        this.feedback.setText(message).setColor(success ? "#75f1c3" : "#ff8b8b").setAlpha(0).setY(548);
+        this.tweens.add({ targets: this.feedback, alpha: 1, y: 525, duration: 220, ease: "Back.out", hold: 420, yoyo: true });
+      }
+    }
+
+    class WinScene extends BaseScene {
+      constructor() { super("WinScene"); }
+
+      create() {
+        const score = this.registry.get("score") ?? 0;
+        this.createBackdrop(0x171536);
+        this.makeTextures();
+        this.add.rectangle(480, 300, 760, 455, COLORS.panel, 0.96).setStrokeStyle(1, COLORS.mint, 0.3);
+        for (let i = 0; i < 22; i += 1) {
+          const x = 120 + ((i * 137) % 720);
+          const y = 125 + ((i * 83) % 300);
+          const star = addText(this, x, y, i % 3 === 0 ? "✦" : "·", { fontSize: i % 3 === 0 ? "20px" : "24px", color: i % 2 ? "#ffd66b" : "#75f1c3" }).setOrigin(0.5);
+          this.tweens.add({ targets: star, alpha: 0.2, duration: 500 + i * 25, yoyo: true, repeat: -1, delay: i * 40 });
+        }
+        addText(this, 480, 170, "冒險完成！", { fontSize: "45px", fontStyle: "900", color: "#f7f8ff" }).setOrigin(0.5);
+        addText(this, 480, 224, "你已經通過全部五個數學關卡", { fontSize: "19px", color: "#aab4d4" }).setOrigin(0.5);
+        addText(this, 480, 312, `${score}`, { fontSize: "76px", fontStyle: "900", color: "#ffd66b" }).setOrigin(0.5);
+        addText(this, 480, 366, "TOTAL SCORE", { fontSize: "13px", fontStyle: "900", color: "#75f1c3", letterSpacing: 2 }).setOrigin(0.5);
+        addText(this, 480, 409, score >= 50 ? "太厲害了！你是數學星球的 MVP！" : "很棒！再挑戰一次，拿到更高分吧！", { fontSize: "17px", fontStyle: "700", color: "#f7f8ff" }).setOrigin(0.5);
+        roundedButton(this, 480, 500, 220, 56, "再玩一次  ↻", COLORS.mint, () => {
+          this.registry.set({ levelIndex: 0, score: 0 });
+          this.scene.start("StartScene");
+        });
+      }
+    }
+
+    const config = {
+      type: Phaser.AUTO,
+      parent: "game",
+      width: 960,
+      height: 600,
+      backgroundColor: "#10172f",
+      antialias: true,
+      physics: { default: "arcade", arcade: { gravity: { y: 0 }, debug: false } },
+      scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 960, height: 600 },
+      scene: [StartScene, GameScene, WinScene]
+    };
+
+    new Phaser.Game(config);
+  </script>
+</body>
+</html>
